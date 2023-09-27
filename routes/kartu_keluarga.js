@@ -7,10 +7,27 @@ const { body, validationResult } = require('express-validator');
 //import database
 const connection = require('../config/db');
 
+// Function Read all data
+router.get('/', function (req, res) {
+    connection.query('SELECT * FROM kartu_keluarga ORDER BY no_kk DESC', function (err, rows) {
+        if (err) {
+            return res.status(500).json({
+                status: false,
+                message: 'Server Failed',
+            });
+        } else {
+            return res.status(200).json({
+            status: true,
+            message: 'Data Kartu Keluarga',
+            data: rows,
+            });
+        }
+    });
+});
+
 //function Search data berdasarkan no_kk
 router.get('/search/:no_kk', function (req, res){
     let no_kk = req.params.no_kk;
-    
     connection.query(`SELECT * FROM kartu_keluarga WHERE no_kk = ${no_kk}`, function(err, rows) {
         if (err) {
             return res.status(500).json({
@@ -37,6 +54,7 @@ router.get('/search/:no_kk', function (req, res){
 //function Create data
 router.post('/create', [
     //validation
+    body('no_kk').notEmpty(),
     body('alamat').notEmpty(),
     body('rt').notEmpty(),
     body('rw').notEmpty(),
@@ -53,6 +71,7 @@ router.post('/create', [
         });
     }
     let Data = {
+        no_kk: req.body.no_kk,
         alamat: req.body.alamat,
         rt: req.body.rt,
         rw: req.body.rw,
@@ -77,26 +96,9 @@ router.post('/create', [
     })
 })
 
-//function Read data
-router.get('/', function (req,res){
-    connection.query('SELECT * FROM kartu_keluarga ORDER BY no_kk DESC', function(err, rows){
-        if (err) {
-            return res.status(500).json({
-                status: false,
-                message: 'Server Failed',
-            })
-        }else{
-            return res.status(200).json({
-                status: true,
-                message: 'Data Kartu Keluarga',
-                data: rows
-            })
-        }
-    })
-});
-
 //function Update data
 router.patch('/update/:no_kk', [
+    body('no_kk').notEmpty(), 
     body('alamat').notEmpty(),
     body('rt').notEmpty(),
     body('rw').notEmpty(),
@@ -114,6 +116,7 @@ router.patch('/update/:no_kk', [
     }
     let no_kk = req.params.no_kk;
     let Data = {
+        no_kk: req.body.no_kk,
         alamat: req.body.alamat,
         rt: req.body.rt,
         rw: req.body.rw,
@@ -132,7 +135,7 @@ router.patch('/update/:no_kk', [
         } else {
             return res.status(200).json({
                 status: true,
-                message: 'Update Success..!',
+                message: 'Update Data Success..!',
             })
         }
     })

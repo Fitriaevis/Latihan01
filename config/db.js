@@ -11,9 +11,9 @@ let connection = mysql.createConnection({
 //membuat kondisi untuk melihat apakah koneksi apakah sudah berjalan
 connection.connect(function (error){
     if(!!error){
-        console.log('koneksi gagal.....');
+        console.log('koneksi gagal');
     }else{
-        console.log('koneksi berhasil.....');
+        console.log('koneksi berhasil...');
     }
 })
 

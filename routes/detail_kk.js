@@ -1,247 +1,163 @@
 const express = require('express');
 const router = express.Router();
 
-// Import express-validator
+//import express-validator
 const { body, validationResult } = require('express-validator');
 
-// Import database
+//import database
 const connection = require('../config/db');
 
-// Function to execute SQL queries
-function queryAsync(query, params) {
-  return new Promise((resolve, reject) => {
-    connection.query(query, params, (err, results) => {
-      if (err) {
-        return reject(err);
-      }
-      resolve(results);
-    });
-  });
-}
-
-// Function Read data
-router.get('/', function (req, res) {
-  connection.query('SELECT * FROM detail_kk ORDER BY id_detail DESC', function (err, rows) {
-    if (err) {
-      return res.status(500).json({
-        status: false,
-        message: 'Server Failed',
-      });
-    } else {
-      return res.status(200).json({
-        status: true,
-        message: 'Data Detail Keluarga',
-        data: rows,
-      });
-    }
-  });
-});
-
-// Function Create data
+// Function Create Data
 router.post('/create', [
     // Validation
     body('no_kk').notEmpty(),
     body('nik').notEmpty(),
-    body('status_hubungan_dalam_keluarga')
-      .notEmpty()
-      .custom((value) => {
-        // Memeriksa apakah nilai adalah salah satu dari tiga pilihan yang diizinkan
-        if (['kepala-keluarga', 'istri', 'anak'].includes(value)) {
-          return true;
-        }
-        throw new Error('Status hubungan dalam keluarga tidak valid');
-      }),
-  ], async (req, res) => {
-    const error = validationResult(req);
-    if (!error.isEmpty()) {
-      return res.status(422).json({
-        error: error.array(),
-      });
+    body('status_hubungan_dalam_keluarga').notEmpty(),
+    body('ayah').notEmpty(),
+    body('ibu').notEmpty()
+], (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(422).json({
+            errors: errors.array()
+        });
     }
-
-  let Data = {
-    no_kk: req.body.no_kk,
-    nik: req.body.nik,
-    status_hubungan_dalam_keluarga: req.body.status_hubungan_dalam_keluarga,
-  };
-
-  // Fetch 'ayah' and 'ibu' from 'ktp' based on 'nik'
-  const queryKtp = `SELECT ayah, ibu FROM ktp WHERE nik = ?`;
-  try {
-    const ktpData = await queryAsync(queryKtp, [Data.nik]);
-
-    if (ktpData.length === 0) {
-      return res.status(404).json({
-        status: false,
-        message: 'Data not found in ktp table',
-      });
-    }
-
-    Data.ayah = ktpData[0].ayah;
-    Data.ibu = ktpData[0].ibu;
-
-    // Fetch 'no_kk' from 'kk' based on 'no_kk'
-    const queryKk = `SELECT no_kk FROM kk WHERE no_kk = ?`;
-    const kkData = await queryAsync(queryKk, [Data.no_kk]);
-
-    if (kkData.length === 0) {
-      return res.status(404).json({
-        status: false,
-        message: 'Data not found in kk table',
-      });
-    }
-
-    // Now, you can insert 'Data' into 'detail_kk'
-    const insertQuery = `INSERT INTO detail_kk (no_kk, nik, status_hubungan_dalam_keluarga, ayah, ibu) VALUES (?, ?, ?, ?, ?)`;
-    connection.query(
-      insertQuery,
-      [Data.no_kk, Data.nik, Data.status_hubungan_dalam_keluarga, Data.ayah, Data.ibu],
-      function (err, rows) {
+    let data = {
+        no_kk: req.body.no_kk,
+        nik: req.body.nik,
+        status_hubungan_dalam_keluarga: req.body.status_hubungan_dalam_keluarga,
+        ayah: req.body.ayah,
+        ibu: req.body.ibu
+    };
+    connection.query('INSERT INTO detail_kk SET ?', data, function (err, result) {
         if (err) {
-          return res.status(500).json({
-            status: false,
-            message: 'Server Error',
-          });
+            return res.status(500).json({
+                status: false,
+                message: 'Server Error',
+            });
         } else {
-          return res.status(201).json({
-            status: true,
-            message: 'Create Data Success...',
-          });
+            return res.status(201).json({
+                status: true,
+                message: 'Data detail_kk berhasil ditambahkan',
+                insertedId: result.insertId
+            });
         }
-      }
-    );
-  } catch (err) {
-    return res.status(500).json({
-      status: false,
-      message: err.message,
     });
-    }
 });
 
-// Function Search data berdasarkan id_detail
-router.get('/search/:id_detail', function (req, res) {
-  let id_detail = req.params.id_detail;
-
-  connection.query(`SELECT * FROM detail_kk WHERE id_detail = ${id_detail}`, function (err, rows) {
-    if (err) {
-      return res.status(500).json({
-        status: false,
-        message: 'Server Error',
-      });
-    }
-    if (rows.length <= 0) {
-      return res.status(404).json({
-        status: false,
-        message: 'Not Found',
-      });
-    } else {
-      return res.status(200).json({
-        status: true,
-        message: 'Data Detail Keluarga',
-        data: rows[0],
-      });
-    }
-  });
+// Function Read All Data
+router.get('/', function (req, res) {
+    connection.query(' SELECT kartu_keluarga.no_kk, ktp.nama_lengkap AS nama, ' +
+    ' detail_kk.status_hubungan_dalam_keluarga, ' +
+    ' ayah.nama_lengkap AS ayah, ibu.nama_lengkap AS ibu ' +
+    ' FROM detail_kk JOIN ktp ON detail_kk.nik = ktp.nik ' +
+    ' LEFT JOIN ktp AS ayah ON detail_kk.ayah = ayah.nik ' +
+    ' LEFT JOIN ktp AS ibu ON detail_kk.ibu = ibu.nik ' +
+    ' LEFT JOIN kartu_keluarga ON detail_kk.no_kk = kartu_keluarga.no_kk ', function (err, rows) {
+            if (err) {
+                return res.status(500).json({
+                    status: false,
+                    message: 'Server Failed',
+                })
+            } else {
+                return res.status(200).json({
+                    status: true,
+                    message: 'Data detail_kk',
+                    data: rows
+                })
+            }
+        })
 });
 
-
-// Function Update data
-router.patch('/update/:id_detail', [
+// Function Update Data
+router.patch('/update/:id', [
     body('no_kk').notEmpty(),
     body('nik').notEmpty(),
-    body('status_hubungan_dalam_keluarga')
-      .notEmpty()
-      .custom((value) => {
-        // Memeriksa apakah nilai adalah salah satu dari tiga pilihan yang diizinkan
-        if (['kepala-keluarga', 'istri', 'anak'].includes(value)) {
-          return true;
-        }
-        throw new Error('Status hubungan dalam keluarga tidak valid');
-      }),
-  ], async (req, res) => {
-    const error = validationResult(req);
-    if (!error.isEmpty()) {
-      return res.status(422).json({
-        error: error.array(),
-      });
+    body('status_hubungan_dalam_keluarga').notEmpty(),
+    body('ayah').notEmpty(),
+    body('ibu').notEmpty()
+], (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(422).json({
+            errors: errors.array()
+        });
     }
-  
-    let id_detail = req.params.id_detail;
-    let Data = {
-      no_kk: req.body.no_kk,
-      nik: req.body.nik,
-      status_hubungan_dalam_keluarga: req.body.status_hubungan_dalam_keluarga,
+    let id = req.params.id;
+    let data = {
+        no_kk: req.body.no_kk,
+        nik: req.body.nik,
+        status_hubungan_dalam_keluarga: req.body.status_hubungan_dalam_keluarga,
+        ayah: req.body.ayah,
+        ibu: req.body.ibu
     };
-
-  // Fetch 'ayah' and 'ibu' from 'ktp' based on 'nik'
-  const queryKtp = `SELECT ayah, ibu FROM ktp WHERE nik = ?`;
-  try {
-    const ktpData = await queryAsync(queryKtp, [Data.nik]);
-
-    if (ktpData.length === 0) {
-      return res.status(404).json({
-        status: false,
-        message: 'Data not found in ktp table',
-      });
-    }
-
-    Data.ayah = ktpData[0].ayah;
-    Data.ibu = ktpData[0].ibu;
-
-    // Fetch 'no_kk' from 'kk' based on 'no_kk'
-    const queryKk = `SELECT no_kk FROM kk WHERE no_kk = ?`;
-    const kkData = await queryAsync(queryKk, [Data.no_kk]);
-
-    if (kkData.length === 0) {
-      return res.status(404).json({
-        status: false,
-        message: 'Data not found in kk table',
-      });
-    }
-
-    // Now, you can update 'Data' in 'detail_kk'
-    const updateQuery = `UPDATE detail_kk SET no_kk = ?, nik = ?, status_hubungan_dalam_keluarga = ?, ayah = ?, ibu = ? WHERE id_detail = ?`;
-    connection.query(
-      updateQuery,
-      [Data.no_kk, Data.nik, Data.status_hubungan_dalam_keluarga, Data.ayah, Data.ibu, id_detail],
-      function (err, rows) {
+    connection.query('UPDATE detail_kk SET ? WHERE id_detail = ?', [data, id], function (err, result) {
         if (err) {
-          return res.status(500).json({
-            status: false,
-            message: 'Server Error',
-          });
+            return res.status(500).json({
+                status: false,
+                message: 'Server Error',
+            });
+        } else if (result.affectedRows === 0) {
+            return res.status(404).json({
+                status: false,
+                message: 'Data detail_kk tidak ditemukan',
+            });
         } else {
-          return res.status(200).json({
-            status: true,
-            message: 'Update Success..!',
-          });
+            return res.status(200).json({
+                status: true,
+                message: 'Data detail_kk berhasil diperbarui',
+            });
         }
-      }
-    );
-  } catch (err) {
-    return res.status(500).json({
-      status: false,
-      message: 'Server Error',
     });
-  }
 });
 
-// Function Delete data
-router.delete('/delete/:id_detail', function (req, res) {
-  let id_detail = req.params.id_detail;
-  connection.query(`DELETE FROM detail_kk WHERE id_detail = ${id_detail}`, function (err, rows) {
-    if (err) {
-      return res.status(500).json({
-        status: false,
-        message: 'Server Error',
-      });
-    } else {
-      return res.status(200).json({
-        status: true,
-        message: 'Delete Success..!',
-      });
-    }
-  });
-});
+// Function Delete Data
+router.delete('/delete/:id', function(req, res){
+    let id = req.params.id;
+    connection.query(`DELETE FROM detail_kk WHERE id_detail = ${id}`,  function(err, rows) {
+        if (err) {
+            return res.status(500).json({
+                status: false,
+                message: 'Server Error',
+            })
+        } else {
+            return res.status(200).json({
+                status: true,
+                message: 'Delete Success..!',
+            })
+        }
+    })
+})
+
+// Function Get Data by Id
+router.get('/(:id)', function (req, res){
+    let id = req.params.id;
+    connection.query(`SELECT kartu_keluarga.no_kk, ktp.nama_lengkap AS nama, 
+    detail_kk.status_hubungan_dalam_keluarga, ayah.nama_lengkap AS ayah, 
+    ibu.nama_lengkap AS ibu FROM detail_kk JOIN ktp ON detail_kk.nik = ktp.nik 
+    LEFT JOIN ktp AS ayah ON detail_kk.ayah = ayah.nik LEFT JOIN ktp AS ibu ON detail_kk.ibu = ibu.nik 
+    LEFT JOIN kartu_keluarga ON detail_kk.no_kk = kartu_keluarga.no_kk 
+    WHERE id_detail = ${id}`, function(err, rows) {
+        if (err) {
+            return res.status(500).json({
+                status: false,
+                message: 'Server Error',
+            })
+        }
+        if (rows.length <= 0) {
+            return res.status(404).json({
+                status: false,
+                message: 'Not Found',
+            })
+        }
+        else{
+            return res.status(200).json({
+                status: true,
+                message: 'Data detail_kk',
+                data: rows[0]
+            })
+        }
+    })
+})
 
 module.exports = router;
